@@ -1,0 +1,113 @@
+Mirica Victor-Nicolae 334CB
+
+
+Implementarea Solutiei:
+
+Un hash table gpu-accelerated folosit pentru stocarea
+eficienta a intrarilor de tip cheie-valoare.
+
+In fisierul header am adaugat un tip de structura 'entry', stocata in
+tabela hash. Pentru tabela hash, am adaugat trei campuri private:
+un pointer catre tabela in sine, dimensiunea maxima si dimensiunea curenta
+a tabelei.
+
+Am implementat trei functii ajutatoare pe langa cele principale
+(insert, retrival, resize):
+Functia HandleError pentru evaluarea erorilor intoarse de functiile CUDA
+O functie simpla de hashing
+O functie care intoarce numarul de threaduri si blocuri pentru apelarea
+functiilor kernel
+
+Init
+Aloca memorie pentru tabela si o initializeaza cu 0
+
+Insert
+Copiez cheile si valorile in device
+De asemenea copiez si marimea curenta a tabelei,
+pentru incrementare.
+Verific daca am nevoie de resize. Am ales un factor
+de load de 90% si unul de resize de 2x.
+Apelez functia kernelInsert, copiez inapoi in host si eliberez.
+In functia de kernel, dupa ce verific daca indexul e valid
+calculez hash-ul si verific acea locatie din tabela.
+In cazul in care aceasta este valida, se va insera valoarea folosind
+functii atomice. In cazul in care inserarea valorii este o noua intrare
+si nu un update, incrementez marimea tabelei.
+In cazul in care locul nu este valid, caut urmatorul loc valid calculand
+un nou hash cu ajutorul vechiului hash.
+
+Get
+Copiez cheile in device si aloc memorie pentru vectorul de valori.
+Apelez functia kernelGet, copiez valorile inapoi in host si eliberez
+memoria.
+In functia kernel, odata ce verific ca indexul este valid, calculez hash-ul
+si verific daca acea locatie din tabela contine cheia cautata.
+In cazul in care cheia gasita este 0, inseamna ca nu exista valoarea cautata.
+Similar cu insert-ul, daca gasesc o alta cheie, calculez un nou hash si reiau
+cautarea.
+
+Resize
+Aloc o noua tabela si o Initializ cu 0.
+Apelez functia kernelResize, dupa care eliberez memoria pentru tabela veche.
+In functia kernel, verific daca indexul este valid si verific daca locatia
+din tabela veche este valida. Daca si locatia din tabela noua este valida,
+introduc cheia si valorea in tabela noua.
+
+--------------------
+
+Cum se stochează hashtable în memoria GPU VRAM:
+
+Sturcturta este implementata ca un array de elemente de tipul 'entry'.
+Fiecare element contine o cheie si o valoare.
+Pentru a accesa un element din tabela, se calculeaza hash-ul cheii si se
+verifica daca locatia din tabela este valida. Daca nu este valida, se
+calculeaza un nou hash si se reia cautarea.
+Aceasta repartizare in memoria VRAM permite accesul rapid la elemente
+si o repartizare uniforma a elementelor in tabela prin utilizarea
+paralelismului GPU.
+
+--------------------
+
+Output la performanțele obținute:
+
+O sa iau ca referinta testul 6:
+
+HASH_BATCH_INSERT count: 10000000 speed: 192M/sec loadfactor: 50%
+HASH_BATCH_INSERT count: 10000000 speed: 125M/sec loadfactor: 50%
+HASH_BATCH_INSERT count: 10000000 speed: 325M/sec loadfactor: 75%
+HASH_BATCH_INSERT count: 10000000 speed: 73M/sec loadfactor: 50%
+HASH_BATCH_INSERT count: 10000000 speed: 348M/sec loadfactor: 62%
+HASH_BATCH_INSERT count: 10000000 speed: 306M/sec loadfactor: 75%
+HASH_BATCH_INSERT count: 10000000 speed: 239M/sec loadfactor: 87%
+HASH_BATCH_INSERT count: 10000000 speed: 42M/sec loadfactor: 50%
+HASH_BATCH_INSERT count: 10000000 speed: 361M/sec loadfactor: 56%
+HASH_BATCH_INSERT count: 10000000 speed: 347M/sec loadfactor: 62%
+HASH_BATCH_GET count: 10000000 speed: 354M/sec loadfactor: 62%
+HASH_BATCH_GET count: 10000000 speed: 355M/sec loadfactor: 62%
+HASH_BATCH_GET count: 10000000 speed: 355M/sec loadfactor: 62%
+HASH_BATCH_GET count: 10000000 speed: 353M/sec loadfactor: 62%
+HASH_BATCH_GET count: 10000000 speed: 353M/sec loadfactor: 62%
+HASH_BATCH_GET count: 10000000 speed: 355M/sec loadfactor: 62%
+HASH_BATCH_GET count: 10000000 speed: 348M/sec loadfactor: 62%
+HASH_BATCH_GET count: 10000000 speed: 336M/sec loadfactor: 62%
+HASH_BATCH_GET count: 10000000 speed: 334M/sec loadfactor: 62%
+HASH_BATCH_GET count: 10000000 speed: 333M/sec loadfactor: 62%
+----------------------------------------------
+AVG_INSERT: 236 M/sec, AVG_GET: 348 M/sec, MIN_SPEED_REQ: 50 M/sec
+
+Output-ul este impartit in doua parti: insert si get.
+Fiecare output contine numarul de elemente inserate sau cautate,
+viteza de inserare sau cautare si factorul de load.
+Viteza este masurata in milioane de operatii pe secunda.
+Se poate observa faptul ca loadfactor-ul nu trece de valoarea
+impusa de mine (90%).
+In cazul insert-ului putem observa de asemenea faptul ca viteaza
+de executie este mai mica in cazul in care loadfactor-ul este mai
+mare. Acest lucru se datoreaza faptului ca in cazul in care loadfactor-ul
+este mai mare, se va face resize mai des, ceea ce va incetini executia.
+In cazul get-ului, viteza de executie este constanta, deoarece
+nu se face resize.
+Comparand cele doua, putem observa ca viteza de executie a get-ului
+este mai mare decat cea a insert-ului.
+In concluzie, implementarea hastabel-ului pe GPU obtine o performanta
+acceptabila in ceea ce priveste inserarea si extragerea de elemente.
